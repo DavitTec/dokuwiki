@@ -83,17 +83,19 @@ function addLogEntry($date, $id, $type=DOKU_CHANGE_TYPE_EDIT, $summary='', $extr
             'extra' => str_replace($strip, '', $extra)
             );
 
+    $wasCreated = ($type===DOKU_CHANGE_TYPE_CREATE);
+    $wasReverted = ($type===DOKU_CHANGE_TYPE_REVERT);
     // update metadata
     if (!$wasRemoved) {
         $oldmeta = p_read_metadata($id);
         $meta    = array();
-        if (!$INFO['exists'] && empty($oldmeta['persistent']['date']['created'])){ // newly created
+        if ($wasCreated && empty($oldmeta['persistent']['date']['created'])){ // newly created
             $meta['date']['created'] = $created;
             if ($user){
                 $meta['creator'] = $INFO['userinfo']['name'];
                 $meta['user']    = $user;
             }
-        } elseif (!$INFO['exists'] && !empty($oldmeta['persistent']['date']['created'])) { // re-created / restored
+        } elseif (($wasCreated || $wasReverted) && !empty($oldmeta['persistent']['date']['created'])) { // re-created / restored
             $meta['date']['created']  = $oldmeta['persistent']['date']['created'];
             $meta['date']['modified'] = $created; // use the files ctime here
             $meta['creator'] = $oldmeta['persistent']['creator'];
@@ -725,8 +727,10 @@ abstract class ChangeLog {
      * If file larger than $chuncksize, only chunck is read that could contain $rev.
      *
      * @param int $rev   revision timestamp
-     * @return array(fp, array(changeloglines), $head, $tail, $eof)|bool
-     *     returns false when not succeed. fp only defined for chuck reading, needs closing.
+     * @return array|false
+     *     if success returns array(fp, array(changeloglines), $head, $tail, $eof)
+     *     where fp only defined for chuck reading, needs closing.
+     *     otherwise false
      */
     protected function readloglines($rev) {
         $file = $this->getChangelogFilename();
